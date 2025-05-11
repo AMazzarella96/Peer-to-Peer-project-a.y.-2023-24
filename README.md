@@ -21,7 +21,7 @@ The system is composed of two elements:
 The Battleship smart contract constitutes the core of the system managing all the different steps of the
 game. Its structure can be analyzed in three sections: Data structures, Events and Functions.
 
-Data structures:
+```Data structures```
 The logic of the smart contract rotates around three main structures:
 ▪ Match: a struct representing an idle/ongoing match composed of:
 ▪ Accuse: a boolean flag used within the accusation phase during a match
