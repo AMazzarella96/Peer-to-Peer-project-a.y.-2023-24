@@ -60,6 +60,7 @@ The smart contract provides several events used for managing the different phase
 - Accuse: emitted whenever a player accuses the opponent of inactivity
 
 **Functions**
+
 The smart contract provides the following functions:
 - Create_match: called whenever a player creates a new match, specifying the size of the board, the total number of ships and the root hash of its board. This call will create a new match inside the games mapping, setting the appropriate parameters as the ones passed by the player (which will be considered as player_1) and setting to null all the information related to player_2
 - join_match_id: called by a player who wants to join an existing match and already knows the id. The function will emit size_only specifying the size of the board
@@ -73,4 +74,63 @@ the contract, setting the full flag of the match, and saving the player address 
 the smart contract emitting bid_placed(1) in case of only one bet has been placed, bid_placed(2) as
 soon as the second bet has been placed (and then also your_turn is emitted) or match_ended(-1) in
 case the bets are not the same, sending a refund to both players
+- play_turn: called by the current player specifying a coordinate <row, column> and will emit the
+event turn_played, catched by the opponent for retrieving the torpedo coordinates
+- check_move: called by the opponent after a turn played, checks whether the opponent’s response
+is legitimate through a proof verification using the provided proof, the value (1 or 0 – Hit or Miss),
+the index and the root hash uploaded within the match. If the verification goes well, there are two
+cases: 1) the opponent has no remaining ships and the current player wins (emit match_ended(0)
+for board verification), 2) will be emitted your_turn for the turn change. If the opponent tries to
+cheat, it will be emitted a match_ended(-1) sending the reward to the current player
+- check_board: called when a player wins a match, checks whether the ships on the board were
+correctly placed, by checking that the provided board (in clear) contains a number of ships equal to
+total_ships. If the check goes well, it will be emitted a match_ended (1) sending the reward to the
+winner, otherwise it will be emitted a match_ended (-1) sending the reward to the opponent
+- accuse_player: called whenever a player has the suspect that the opponent left the game, saving
+the current block number and emitting the event accuse
+- accuse_response: called whenever the opponent accused the current player of inactivity to address
+the accuse, resetting all the accuse parameters
+- withdraw: called in case of inactivity accuse after the 5 blocks delay. Once the time has passed, the
+accuser is declared a winner and will be able to claim the entire reward.
+- Remove_match: called whenever a match has to be deleted from the list of matches, reorganizing
+other elements to remove eventual gaps
+
+### Board.py
+
+The front-end part of the system offers the player a set of functions allowing the players to interact with the
+deployed smart contract. There are some utility functions and main functions.
+The main functions are:
+- create_board: create an empty data frame representing the board and based on the dimensions
+calls the function fill_board with the predetermined number/type of ships. Once the board is filled,
+the root hash is computed through a call to the merkle_tree function
+- fill_board: for each ship checks whether the provided coordinates are valid (there’s enough room
+for the ship, do not intersect with other ships, it is not diagonal, the distance among the
+coordinates is equal to the length of the ship). Once all ships are placed, prints the resulting board
+- new_match: makes a call to the smart contract invoking create_match passing the root hash, the
+size of the board and the total number of ships; returns the id of the created match
+- log_loop: an async function for waiting for a player to join the match and start the game. It loops
+over an event filter created on the match_ready event, exiting the loop on reception
+- place_bet: async function for the bet placement phase, in which the first player who puts the bet in
+the smart contract waits for either bid_placed event (meaning that the opponent placed its bet
+correctly) or match_ended (meaning that the bets were not as agreed)
+- play_game: async function implementing the game itself looping on several event filters, one for
+each event emitted during the match. For each event received, based on the actual player’s turn it
+will ask for a coordinate to hit (calling the play_turn function of the smart contract) or a response
+subsequent to a shot (calling the check_move function of the smart contract). After 10 seconds of
+inactivity asks the waiting player if it wants to perform a liveness check on the opponent (eventually
+calling the accuse_player function and saving the current last block number). At this point the front-
+end code starts polling the blockchain every couple of seconds checking the last block number.
+Once the difference between the previously saved block number and the polled one is greater or
+equals to 5, the player will automatically win the match and it will be able to call the withdraw
+function of the smart contract, claiming the reward
+
+The utility functions are:
+
+- df_toArray: converts a Pandas DataFrame into a python int array
+- readContractData: retrieve the json object of the contract
+- print_available: in the ship placement phase prints the remaining ships to place
+- merkle_tree: builds a merkle tree of the board and returns its root hash
+- get_proof: provides an inclusion proof for a specified key
+- print_menu_1/2/3: print front-end menus
+- convert_to_wei: converts the specified amount to wei for match rewards
 
